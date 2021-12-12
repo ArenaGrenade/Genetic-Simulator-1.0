@@ -1,7 +1,5 @@
 import numpy as np
 from flask.json import JSONEncoder
-from scipy.signal import convolve2d
-import cv2
 from sklearn.datasets import make_blobs
 
 map_colors = {
