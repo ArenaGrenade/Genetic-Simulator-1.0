@@ -18,15 +18,25 @@ function displayRender(gameMap) {
     ctx.drawImage(canvas, 0, 0, displayResolution.x, displayResolution.y);
 }
 
-$(document).ready(function() {
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+$(document).ready(async function() {
     $.post(backend_url + "init-map", mapResolution, function(data, status) {
         // console.log(data)
         $("#mainCanvas").attr("width", displayResolution.x);
         $("#mainCanvas").attr("height", displayResolution.y);
 
-        var renderedMap = data.renderedMap;
-        displayRender(renderedMap);
+        displayRender(data.renderedMap);
     })
+
+    while (true) {
+        const response = await fetch(backend_url + "run-timestep");
+        const data = await response.json();
+        if (data != null && data.renderedMap != null) displayRender(data.renderedMap);
+        await delay(100)
+    }
 })
 
 $("#mainCanvas").mousedown(function() {

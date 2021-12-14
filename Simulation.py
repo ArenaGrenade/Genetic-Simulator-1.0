@@ -17,10 +17,10 @@ class Simulator(object):
         self.seed = seed
         self.rng = np.random.default_rng(seed)
         self.u, self.v = np.meshgrid(np.arange(gx), np.arange(gx))
-        self.game_map = self.init_rand_map(gx)
+        self.game_map = self.init_rand_map()
         
         self.organisms = []
-        self.init_organisms(gx)
+        self.init_organisms()
         
         self.time_step = 0
         self.day_num = 0
@@ -34,9 +34,9 @@ class Simulator(object):
     def init_organisms(self):
         for i in range(0, self.gx, 11):
             for j in range(0, self.gx, 11):
-                if np.sum(self.game_map[i:i+11,j:j+11]) == 0:
+                if self.game_map[i:i+11,j:j+11].shape == (11, 11) and np.sum(self.game_map[i:i+11,j:j+11]) == 0:
                     self.organisms.append(Organism(
-                        (i, j),
+                        [i, j],
                         96,
                         self.rng
                     ))
@@ -86,7 +86,10 @@ class Simulator(object):
         # Render the organisms
         for organism in self.organisms:
             x, y = organism.location
+            # print(y, y + 11)
+            # print(map_render[x:x+11, y:y+11].shape)
             body_render = organism.render_body()
+            # print(body_render.shape)
             map_render[x:x+11, y:y+11][organism.body != 0] = body_render[organism.body != 0]
         
         return map_render.ravel().tolist()
@@ -103,43 +106,77 @@ class Simulator(object):
             self.is_day = False
             self.time_step += 1
         
-        if self.day_num >= 32:
-            self.day_num = 0
-        elif (self.day_num % 8) < 4: self.is_summer = True
+        if (self.day_num % 8) < 4: self.is_summer = True
         else: self.is_summer = False
         
         # Simulate organisms for 1 time step
         for organism in self.organisms:
             action_map = organism.forward(self.gx, (0, 0, 0), (0, 0, 0), (0, 0, 0), self.is_day, self.is_summer, self.time_step, self.day_num)
-            for action, value in zip(organism.output_names, action_map):
-                if action == "O_EmitPh":
+            actions_taken = 0
+            for action, value in zip(organism.outputs_names, action_map):
+                if action == "O_EmitPh" and (1 / (1 + np.exp(-value))) > 0.5:
+                    organism.food -= 8
+                    organism.water -= 8
+                    actions_taken += 1
                     continue
-                elif action == "O_MoveX" and np.abs(value) >= 0.5:
-                    organism.location[0] += np.sign(value)
-                elif action == "O_MoveY" and np.abs(value) >= 0.5:
-                    organism.location[1] += np.sign(value)
+                elif action == "O_MoveX" and np.abs(value) > 0.5:
+                    organism.location[0] = np.clip(np.sign(value) + organism.location[0], 0, self.gx - 11)
+                    organism.food -= 2
+                    organism.water -= 2
+                    actions_taken += 1
+                elif action == "O_MoveY" and np.abs(value) > 0.5:
+                    organism.location[1] = np.clip(np.sign(value), 0, self.gx)
+                    organism.food -= 2
+                    organism.water -= 2
+                    actions_taken += 1
                 elif action == "O_MoveRand" and (1 / (1 + np.exp(-value))) >= 0.5:
-                    organism.location[0] += self.rng.integers(-1, 2)
-                    organism.location[1] += self.rng.integers(-1, 2)
-                elif action == "O_Mouth":
+                    organism.location[0] = np.clip(self.rng.integers(-1, 2) + organism.location[0], 0, self.gx - 11)
+                    organism.location[1] = np.clip(self.rng.integers(-1, 2) + organism.location[1], 0, self.gx - 11)
+                    organism.food -= 5
+                    organism.water -= 5
+                    actions_taken += 1
+                elif action == "O_Mouth" and (1 / (1 + np.exp(-value))) > 0.5:
+                    organism.food -= 1
+                    organism.water -= 1
+                    actions_taken += 1
                     continue
-                elif action == "O_Razor":
+                elif action == "O_Razor" and (1 / (1 + np.exp(-value))) > 0.5:
+                    organism.food -= 15
+                    organism.water -= 15
+                    actions_taken += 1
                     continue
+            if actions_taken == 0:
+                organism.food -= 1
+                organism.water -= 1
+            organism.food = max(0, organism.food)
+            organism.water = max(0, organism.water)
         
         # Update organism collision avoidance
         for _ in range(3):
             for organismA in self.organisms:
                 for organismB in self.organisms:
-                    dist = [a - b for a, b in zip(organismA.location, organismB.location)]
-                    if all(x <= 11 for x in dist):
+                    dist = [abs(a - b) for a, b in zip(organismA.location, organismB.location)]
+                    if all(x < 11 for x in dist):
                         orgAmap = organismA.body[:-dist[0], :-dist[1]]
                         orgBmap = organismB.body[:dist[0], :dist[1]]
-                        print(orgAmap.shape, orgBmap.shape)
-                        print(orgAmap + orgBmap)
+                        # print(orgAmap.shape, orgBmaps.hape)
+                        # print(orgAmap + orgBmap)
                         
-        # Update organism reproduction
+        new_organisms = []
+        dead_organisms = []
+        for org_id, organism in enumerate(self.organisms):
+            # Update organism reproduction
+            if organism.food >= 500 and organism.water >= 500:
+                new_organisms.append(organism.reproduce())
         
-        # Update organism death
+            # Update organism death
+            # ! need to handle case of carnivores
+            if organism.food == 0 or organism.water == 0:
+                dead_organisms.append(org_id)
+        
+        self.organisms = [org for idx, org in enumerate(self.organisms) if idx not in dead_organisms]
+        
+        # ! have to append new organisms to population with a new location and all that
 
 class CustomJSONEncoder(JSONEncoder):
     def default(self, obj):

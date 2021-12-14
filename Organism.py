@@ -37,7 +37,7 @@ class Organism(object):
         self.oscillator_state = 0
         
         self.location = spawn_loc
-        self.last_movement = None
+        self.last_movement = [0, 0]
         
         self.input_names = ["I_Age", "I_Food", "I_Water", "I_Wood", "I_Oscillator", "I_WorldX", "I_WorldY", "I_LastX", "I_Last Y", "I_Rand", "I_BorderX", "I_BorderY", "I_BorderMin", "I_PhGradWX", "I_PhGradWY", "I_PhW", "I_PhGradTX", "I_PhGradTY", "I_PhT", "I_PhGradBX", "I_PhGradBY", "I_PhB", "I_IsDay", "I_IsSummer", "I_TimeStep", "I_DayNum"]
         self.outputs_names = ["O_OscSet", "O_EmitPh", "O_MoveX", "O_MoveY", "O_MoveRand",  "O_Mouth", "O_Razor"]
@@ -78,10 +78,18 @@ class Organism(object):
                     if neuron.enabled: neuron.output = np.tanh(acc)
                 outputs_computed = True
             
-            if conn.source == "inp": input_val = inputs[conn.src_id]
+            if conn.source == "inp": input_val = inputs_scaled[conn.src_id]
             else: input_val = self.neurons[conn.src_id].output
             
             if conn.sink == "out": action_map[conn.sink_id] += input_val * conn.weight
             else: neuron_acc += input_val * conn.weight
+            
+        # Handle the oscillator update
+        if (1 / (1 + np.exp(-action_map[0]))) >= 0.5:
+            self.oscillator_state += 1
+            self.oscillator_state = int(self.oscillator_state % self.oscillator_period)
         
         return action_map
+
+    def reproduce(self):
+        pass

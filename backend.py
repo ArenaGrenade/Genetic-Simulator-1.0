@@ -20,5 +20,13 @@ def map_size():
     response.headers.add('Access-Control-Allow-Origin', '*')
     return response
 
+@app.route("/run-timestep", methods=["GET"])
+def update_sim_state():
+    global sim_obj
+    if sim_obj is not None: sim_obj.simulate_step()
+    response = jsonify(sim_obj)
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    return response
+
 if __name__ == '__main__':
     app.run(debug=True)
