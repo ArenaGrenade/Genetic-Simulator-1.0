@@ -34,8 +34,14 @@ $(document).ready(async function() {
     while (true) {
         const response = await fetch(backend_url + "run-timestep");
         const data = await response.json();
-        if (data != null && data.renderedMap != null) displayRender(data.renderedMap);
-        await delay(100)
+        if (data != null && data.renderedMap != null) {
+            displayRender(data.renderedMap);
+            $('#hrs').text("Current Hour\t" + data.timeStep);
+            $('#days').text("Current Day\t" + data.dayNum);
+            $('#gen').text("Current Generation\t" + data.generation);
+            $('#stats').text(JSON.stringify(data.stats, null, '\n'));
+        }
+        await delay(2)
     }
 })
 
